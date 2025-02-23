@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suppliers | Pharmacy Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <style>
+        body {
+            background-color: #f4f6f9;
+        }
+        .supplier-status-active {
+            color: #10b981;
+            background-color: #d1fae5;
+        }
+        .supplier-status-inactive {
+            color: #ef4444;
+            background-color: #fee2e2;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased">
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">Suppliers Management</h1>
+                <p class="text-gray-600">Manage and track pharmaceutical suppliers</p>
+            </div>
+            <div class="flex space-x-4">
+                <button id="add-supplier-btn" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 flex items-center">
+                    <i data-feather="plus" class="mr-2"></i>
+                    Add New Supplier
+                </button>
+                <button class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 flex items-center">
+                    <i data-feather="download" class="mr-2"></i>
+                    Export Suppliers
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white shadow-md rounded-lg">
+            <div class="p-4 border-b flex justify-between items-center">
+                <div class="flex space-x-4">
+                    <select id="status-filter" class="border rounded px-2 py-1">
+                        <option value="">All Statuses</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+                <div class="relative">
+                    <input type="text" id="search-input" placeholder="Search suppliers..." class="border rounded-full px-4 py-2 pl-8 w-64">
+                    <i data-feather="search" class="absolute left-2 top-3 text-gray-400"></i>
+                </div>
+            </div>
+
+            <table class="w-full">
+                <thead class="bg-gray-100 border-b">
+                    <tr>
+                        <th class="p-4 text-left">Supplier Name</th>
+                        <th class="p-4 text-left">License Number</th>
+                        <th class="p-4 text-left">Email</th>
+                        <th class="p-4 text-left">Phone</th>
+                        <th class="p-4 text-left">Status</th>
+                        <th class="p-4 text-left">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="suppliers-table-body">
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-4">MedSupply Inc.</td>
+                        <td class="p-4">LSN-2024-001</td>
+                        <td class="p-4">contact@medsupply.com</td>
+                        <td class="p-4">(555) 123-4567</td>
+                        <td class="p-4">
+                            <span class="px-2 py-1 rounded supplier-status-active">Active</span>
+                        </td>
+                        <td class="p-4">
+                            <div class="flex space-x-2">
+                                <button class="text-blue-500 hover:text-blue-700">
+                                    <i data-feather="eye" class="w-5 h-5"></i>
+                                </button>
+                                <button class="text-green-500 hover:text-green-700">
+                                    <i data-feather="edit-2" class="w-5 h-5"></i>
+                                </button>
+                                <button class="text-red-500 hover:text-red-700">
+                                    <i data-feather="trash-2" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-4">PharmaCorp Ltd.</td>
+                        <td class="p-4">LSN-2024-002</td>
+                        <td class="p-4">info@pharmacorp.com</td>
+                        <td class="p-4">(555) 987-6543</td>
+                        <td class="p-4">
+                            <span class="px-2 py-1 rounded supplier-status-inactive">Inactive</span>
+                        </td>
+                        <td class="p-4">
+                            <div class="flex space-x-2">
+                                <button class="text-blue-500 hover:text-blue-700">
+                                    <i data-feather="eye" class="w-5 h-5"></i>
+                                </button>
+                                <button class="text-green-500 hover:text-green-700">
+                                    <i data-feather="edit-2" class="w-5 h-5"></i>
+                                </button>
+                                <button class="text-red-500 hover:text-red-700">
+                                    <i data-feather="trash-2" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="p-4 border-t flex justify-between items-center">
+                <span class="text-gray-600">Showing 1-10 of 25 suppliers</span>
+                <div class="flex space-x-2">
+                    <button class="px-3 py-1 border rounded hover:bg-gray-100">Previous</button>
+                    <button class="px-3 py-1 border rounded hover:bg-gray-100">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Supplier Modal -->
+    <div id="supplier-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg w-[500px] p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="modal-title" class="text-2xl font-semibold">Add New Supplier</h2>
+                <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+                    <i data-feather="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <form id="supplier-form">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <label class="block text-gray-700 mb-2">Supplier Name</label>
+                        <input type="text" id="supplier-name" class="w-full border rounded px-3 py-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-2">License Number</label>
+                        <input type="text" id="license-number" class="w-full border rounded px-3 py-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-2">Status</label>
+                        <select id="supplier-status" class="w-full border rounded px-3 py-2">
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-2">Email</label>
+                        <input type="email" id="supplier-email" class="w-full border rounded px-3 py-2" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 mb-2">Phone Number</label>
+                        <input type="tel" id="supplier-phone" class="w-full border rounded px-3 py-2" required>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-gray-700 mb-2">Address</label>
+                        <textarea id="supplier-address" class="w-full border rounded px-3 py-2" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2 mt-6">
+                    <button type="button" id="cancel-modal" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Save Supplier</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Feather Icons
+        feather.replace();
+
+        // Modal Handling
+        const addSupplierBtn = document.getElementById('add-supplier-btn');
+        const supplierModal = document.getElementById('supplier-modal');
+        const closeModalBtn = document.getElementById('close-modal');
+        const cancelModalBtn = document.getElementById('cancel-modal');
+        const supplierForm = document.getElementById('supplier-form');
+
+        addSupplierBtn.addEventListener('click', () => {
+            document.getElementById('modal-title').textContent = 'Add New Supplier';
+            supplierForm.reset();
+            supplierModal.classList.remove('hidden');
+            supplierModal.classList.add('flex');
+        });
+
+        [closeModalBtn, cancelModalBtn].forEach(btn => {
+            btn.addEventListener('click', () => {
+                supplierModal.classList.add('hidden');
+                supplierModal.classList.remove('flex');
+            });
+        });
+
+        // Form Submission
+        supplierForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            // TODO: Implement supplier creation/editing logic
+            supplierModal.classList.add('hidden');
+            supplierModal.classList.remove('flex');
+        });
+
+        // Search and Filter Functionality
+        const searchInput = document.getElementById('search-input');
+        const statusFilter = document.getElementById('status-filter');
+
+        [searchInput, statusFilter].forEach(el => {
+            el.addEventListener('change', filterSuppliers);
+            el.addEventListener('keyup', filterSuppliers);
+        });
+
+        function filterSuppliers() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const statusValue = statusFilter.value;
+
+            const rows = document.querySelectorAll('#suppliers-table-body tr');
+            rows.forEach(row => {
+                const supplierName = row.cells[0].textContent.toLowerCase();
+                const email = row.cells[2].textContent.toLowerCase();
+                const statusText = row.cells[4].textContent.toLowerCase();
+
+                const matchesSearch = 
+                    supplierName.includes(searchTerm) || 
+                    email.includes(searchTerm);
+                const matchesStatus = !statusValue || statusText.includes(statusValue);
+
+                row.style.display = matchesSearch && matchesStatus ? '' : 'none';
+            });
+        }
+
+        // Edit Supplier Functionality
+        document.getElementById('suppliers-table-body').addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.text-green-500');
+            if (editBtn) {
+                const row = editBtn.closest('tr');
+                
+                // Populate modal with existing data
+                document.getElementById('modal-title').textContent = 'Edit Supplier';
+                document.getElementById('supplier-name').value = row.cells[0].textContent;
+                document.getElementById('license-number').value = row.cells[1].textContent;
+                document.getElementById('supplier-email').value = row.cells[2].textContent;
+                document.getElementById('supplier-phone').value = row.cells[3].textContent;
+                
+                // Set status
+                const statusSpan = row.cells[4].querySelector('span');
+                document.getElementById('supplier-status').value = 
+                    statusSpan.classList.contains('supplier-status-active') ? 'active' : 'inactive';
+
+                supplierModal.classList.remove('hidden');
+                supplierModal.classList.add('flex');
+            }
+        });
+    </script>
+</body>
+</html>
