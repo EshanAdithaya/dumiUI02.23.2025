@@ -57,19 +57,34 @@
     </div>
 
     <script>
-        document.getElementById('login-form').addEventListener('submit', function(e) {
+        document.getElementById('login-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            // Basic client-side validation
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             
-            // In a real-world scenario, this would be an API call
-            if (username === 'admin' && password === 'password') {
-                // Redirect to dashboard
-                window.location.href = 'dashboard.html';
-            } else {
-                alert('Invalid username or password');
+            try {
+                const response = await fetch('http://localhost:5137/api/Auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'accept': 'text/plain'
+                    },
+                    body: JSON.stringify({ email: username, password: password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    // Store the JWT token (accessToken) in localStorage or cookies
+                    localStorage.setItem('accessToken', data.accessToken);
+                    // Redirect to dashboard
+                    window.location.href = 'dashboard.html';
+                } else {
+                    alert('Invalid username or password');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
             }
         });
     </script>
