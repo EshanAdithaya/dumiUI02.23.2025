@@ -100,7 +100,7 @@ function Login() {
           <div className="text-center mt-6">
             <p className="text-gray-600 text-sm">
               Don't have an account? 
-              <a href="#" className="text-purple-600 hover:text-purple-800 ml-1">Contact Admin</a>
+              <a href="/signup" className="text-purple-600 hover:text-purple-800 ml-1">Signup</a>
             </p>
           </div>
         </form>
