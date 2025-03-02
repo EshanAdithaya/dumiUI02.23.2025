@@ -4,13 +4,13 @@ import { useNavigate } from 'react-router-dom';
 function Signup() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    username: '',
     email: '',
     password: '',
     firstName: '',
     lastName: ''
   });
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e) => {
     const { id, value } = e.target;
@@ -23,8 +23,9 @@ function Signup() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
     
-    // Prepare request payload
+    // Prepare request payload - only include fields expected by the API
     const payload = {
       email: formData.email,
       password: formData.password,
@@ -37,20 +38,30 @@ function Signup() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'accept': 'text/plain'
+          'Accept': 'text/plain'
         },
         body: JSON.stringify(payload)
       });
 
+      const data = await response.json();
+
       if (response.ok) {
+        // Store the tokens and user info in localStorage or state management
+        localStorage.setItem('accessToken', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+        localStorage.setItem('userId', data.userId);
+        localStorage.setItem('email', data.email);
+        localStorage.setItem('roles', JSON.stringify(data.roles));
+        
         // Redirect to login page on successful registration
         navigate('/');
       } else {
-        const errorData = await response.json();
-        setError(errorData.detail || 'Registration failed');
+        setError(data.detail || 'Registration failed. Please try again.');
       }
     } catch (error) {
       setError('An error occurred: ' + error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -69,21 +80,6 @@ function Signup() {
             </div>
           )}
           
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="username">
-              Username
-            </label>
-            <input 
-              className="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-purple-500" 
-              id="username" 
-              type="text" 
-              required 
-              placeholder="Enter your username"
-              value={formData.username}
-              onChange={handleChange}
-            />
-          </div>
-
           <div className="mb-6">
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
               Email
@@ -146,9 +142,10 @@ function Signup() {
           <div>
             <button 
               type="submit" 
-              className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:from-purple-600 hover:to-indigo-700 focus:outline-none focus:shadow-outline transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105"
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:from-purple-600 hover:to-indigo-700 focus:outline-none focus:shadow-outline transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-105 disabled:opacity-70 disabled:transform-none"
             >
-              Signup
+              {isLoading ? 'Signing up...' : 'Signup'}
             </button>
           </div>
           
