@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 
 function Orders() {
@@ -57,12 +58,6 @@ function Orders() {
   // State for orders data
   const [orders, setOrders] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
-  
-  // Check if user has required role
-  const hasRole = (requiredRoles) => {
-    if (!userRoles || userRoles.length === 0) return false;
-    return requiredRoles.some(role => userRoles.includes(role));
-  };
   
   // Fetch orders from API
   const fetchOrders = async () => {
@@ -212,7 +207,8 @@ function Orders() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to update order status');
+        const errorData = await response.text();
+        throw new Error(errorData || 'Failed to update order status');
       }
       
       // Refetch orders after successful update
@@ -233,32 +229,42 @@ function Orders() {
     setShowDeleteConfirm(true);
   };
   
-  // Handle delete order
+  // Handle delete order - MODIFIED TO ALLOW ALL USERS
   const handleDeleteOrder = async () => {
     if (!orderToDelete) return;
     
+    // Removed role check to allow all users to delete orders
     setIsLoading(true);
+    setError('');
+    
     try {
       const token = localStorage.getItem('accessToken');
+      
+      // Make sure we have the correct URL format and headers
       const response = await fetch(`http://localhost:5137/api/v1/Orders/${orderToDelete.id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'text/plain'
         }
       });
       
       if (!response.ok) {
-        throw new Error('Failed to delete order');
+        const errorData = await response.text();
+        throw new Error(errorData || `Failed to delete order: Status ${response.status}`);
       }
       
-      // Refetch orders after successful deletion
-      await fetchOrders();
+      // Update the orders list after successful deletion
+      const updatedOrders = orders.filter(order => order.id !== orderToDelete.id);
+      setOrders(updatedOrders);
+      setFilteredOrders(filteredOrders.filter(order => order.id !== orderToDelete.id));
+      
       setShowDeleteConfirm(false);
       setOrderToDelete(null);
     } catch (error) {
       console.error('Error deleting order:', error);
       setError(`Failed to delete order: ${error.message}`);
-      setShowDeleteConfirm(false);
     } finally {
       setIsLoading(false);
     }
@@ -571,7 +577,7 @@ function Orders() {
                       <tr key={order.id} className="border-b hover:bg-gray-50">
                         <td className="p-4">#{order.id}</td>
                         <td className="p-4">{getPharmacyName(order.pharmacyId)}</td>
-                        <td className="p-4">${order.totalAmount.toFixed(2)}</td>
+                        <td className="p-4">${order.totalAmount ? order.totalAmount.toFixed(2) : '0.00'}</td>
                         <td className="p-4">
                           <span className={getStatusClass(order.status)}>
                             {getStatusText(order.status)}
@@ -722,7 +728,7 @@ function Orders() {
                           <option value="">Select Drug</option>
                           {drugs.map(drug => (
                             <option key={drug.id} value={drug.id}>
-                              {drug.name} - ${drug.unitPrice.toFixed(2)}
+                              {drug.name} - ${drug.unitPrice ? drug.unitPrice.toFixed(2) : '0.00'}
                             </option>
                           ))}
                         </select>
@@ -767,8 +773,7 @@ function Orders() {
                     </div>
                   </div>
                 ))}
-              </div>
-              <div className="mb-4">
+              </div>           <div className="mb-4">
                 <button 
                   type="button" 
                   onClick={addOrderItem}
@@ -777,6 +782,7 @@ function Orders() {
                 >
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
+                    
                     className="h-5 w-5 mr-2" 
                     viewBox="0 0 24 24" 
                     fill="none" 
@@ -786,6 +792,8 @@ function Orders() {
                     strokeLinejoin="round"
                   >
                     <line x1="12" y1="5" x2="12" y2="19"></line>
+                  
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                   </svg>
                   Add Another Drug

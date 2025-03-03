@@ -29,8 +29,12 @@ function Dashboard() {
   // State for loading
   const [isLoading, setIsLoading] = useState(true);
   
-  // State for error
-  const [error, setError] = useState('');
+  // State for specific section errors
+  const [errors, setErrors] = useState({
+    drugs: '',
+    orders: '',
+    suppliers: ''
+  });
   
   // State for sales data
   const [salesData, setSalesData] = useState({
@@ -61,16 +65,32 @@ function Dashboard() {
     }
   }, [navigate]);
   
+  // Check if user is admin
+  const isAdmin = () => {
+    return userInfo.roles && userInfo.roles.includes('Admin');
+  };
+  
   // Fetch dashboard data
   useEffect(() => {
     const fetchDashboardData = async () => {
       setIsLoading(true);
-      setError('');
       
+      // Reset errors
+      setErrors({
+        drugs: '',
+        orders: '',
+        suppliers: ''
+      });
+      
+      const token = localStorage.getItem('accessToken');
+      
+      // Initialize data variables
+      let drugsData = [];
+      let ordersData = [];
+      let suppliersData = [];
+      
+      // Fetch drug inventory stats with error handling
       try {
-        const token = localStorage.getItem('accessToken');
-        
-        // Fetch drug inventory stats
         const drugsResponse = await fetch('http://localhost:5137/api/v1/DrugInventory', {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -79,12 +99,17 @@ function Dashboard() {
         });
         
         if (!drugsResponse.ok) {
-          throw new Error('Failed to fetch drug inventory data');
+          throw new Error(`Failed to fetch drug inventory data: ${drugsResponse.status}`);
         }
         
-        const drugsData = await drugsResponse.json();
-        
-        // Fetch orders
+        drugsData = await drugsResponse.json();
+      } catch (error) {
+        console.error('Error fetching drugs data:', error);
+        setErrors(prev => ({ ...prev, drugs: error.message }));
+      }
+      
+      // Fetch orders with error handling
+      try {
         const ordersResponse = await fetch('http://localhost:5137/api/v1/Orders', {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -93,98 +118,189 @@ function Dashboard() {
         });
         
         if (!ordersResponse.ok) {
-          throw new Error('Failed to fetch orders data');
+          throw new Error(`Failed to fetch orders data: ${ordersResponse.status}`);
         }
         
-        const ordersData = await ordersResponse.json();
-        
-        // Fetch suppliers
+        ordersData = await ordersResponse.json();
+      } catch (error) {
+        console.error('Error fetching orders data:', error);
+        setErrors(prev => ({ ...prev, orders: error.message }));
+      }
+      
+      // Fetch suppliers with error handling and fallback
+      try {
         const suppliersResponse = await fetch('http://localhost:5137/api/v1/Suppliers', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Accept': 'text/plain'
           }
         });
+
+        
         
         if (!suppliersResponse.ok) {
-          throw new Error('Failed to fetch suppliers data');
+          // If we get 403 Forbidden, the user might not have permission
+          // Only set error message if user is not admin
+          if (suppliersResponse.status === !isAdmin()) {
+            setErrors(prev => ({ 
+              ...prev, 
+              suppliers: 'You do not have permission to view suppliers data.' 
+            }));
+          } else if (suppliersResponse.status !== 403) {
+            throw new Error(`Failed to fetch suppliers data: ${suppliersResponse.status}`);
+          }
+        } else {
+          suppliersData = await suppliersResponse.json();
         }
-        
-        const suppliersData = await suppliersResponse.json();
-        
-        // Calculate dashboard metrics using the correct drug data structure
-        const lowStockItems = drugsData.filter(drug => drug.minimumStock < drug.minimumStock);
-        const pendingOrders = ordersData.filter(order => order.status === 0);
-        const totalRevenue = ordersData.reduce((sum, order) => sum + order.totalAmount, 0);
-        const activeSuppliers = suppliersData.filter(supplier => supplier.status === 0);
-        
-        // Update dashboard data
-        setDashboardData({
-          drugCount: drugsData.length,
-          lowStockCount: lowStockItems.length,
-          pendingOrders: pendingOrders.length,
-          totalRevenue: totalRevenue,
-          activeSuppliers: activeSuppliers.length,
-          newRequests: 0 // Placeholder since we don't have this data
-        });
-        
-        // Create recent activities list with correct drug data structure
-        const activities = [
-          ...pendingOrders.slice(0, 3).map(order => ({
-            text: `New order #${order.id}`,
-            status: 'Pending',
-            statusColor: 'yellow'
-          })),
-          ...lowStockItems.slice(0, 3).map(drug => ({
-            text: `Low stock alert: ${drug.name}`,
-            status: 'Warning',
-            statusColor: 'red'
-          }))
-        ];
-        
-        // Sort by most recent (assuming we would have timestamps)
-        setRecentActivities(activities.slice(0, 5));
-        
-        // Generate sales data (mock data since we don't have this yet)
-        // In a real application, this would come from an API endpoint
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const currentMonth = new Date().getMonth();
-        const last6Months = [];
-        const last6MonthsData = [];
-        
-        for (let i = 5; i >= 0; i--) {
-          const monthIndex = (currentMonth - i + 12) % 12;
-          last6Months.push(monthNames[monthIndex]);
-          
-          // Calculate total sales for this month (simplified)
-          const monthOrders = ordersData.filter(order => {
-            if (!order.createdAt) return false;
-            const orderDate = new Date(order.createdAt);
-            return orderDate.getMonth() === monthIndex;
-          });
-          
-          const monthSales = monthOrders.reduce((sum, order) => sum + order.totalAmount, 0);
-          last6MonthsData.push(monthSales);
-        }
-        
-        setSalesData({
-          labels: last6Months,
-          data: last6MonthsData
-        });
-        
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setError('Failed to load dashboard data. Please try again.');
-      } finally {
-        setIsLoading(false);
+        console.error('Error fetching suppliers data:', error);
+        // Only set error if user is not admin
+        if (!isAdmin()) {
+          setErrors(prev => ({ ...prev, suppliers: error.message }));
+        }
+        // Use empty array for suppliers data to continue with other sections
+        suppliersData = [];
       }
+      
+      // Calculate dashboard metrics even if some data is missing
+      const lowStockItems = drugsData.filter(drug => 
+        drug.currentStock !== undefined && 
+        drug.minimumStock !== undefined && 
+        drug.currentStock < drug.minimumStock
+      );
+      
+      const pendingOrders = ordersData.filter(order => order.status === 0);
+      const totalRevenue = ordersData.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+      const activeSuppliers = suppliersData.filter(supplier => supplier.status === 0);
+      
+      // Update dashboard data
+      setDashboardData({
+        drugCount: drugsData.length,
+        lowStockCount: lowStockItems.length,
+        pendingOrders: pendingOrders.length,
+        totalRevenue: totalRevenue,
+        activeSuppliers: activeSuppliers.length,
+        newRequests: 0 // Placeholder since we don't have this data
+      });
+      
+      // Create recent activities list from both drugs and orders data
+      const activities = [
+        ...pendingOrders.slice(0, 3).map(order => ({
+          text: `New order #${order.id}`,
+          status: 'Pending',
+          statusColor: 'yellow',
+          timestamp: order.createdAt || new Date().toISOString()
+        })),
+        ...lowStockItems.slice(0, 3).map(drug => ({
+          text: `Low stock alert: ${drug.name}`,
+          status: 'Warning',
+          statusColor: 'red',
+          timestamp: new Date().toISOString() // Use current date as fallback
+        }))
+      ];
+      
+      // Add timestamps if not available
+      const activitiesWithTimestamps = activities.map((activity, index) => {
+        if (!activity.timestamp) {
+          const date = new Date();
+          date.setHours(date.getHours() - index); // Offset by hours for reasonable timestamps
+          return {
+            ...activity,
+            timestamp: date.toISOString()
+          };
+        }
+        return activity;
+      });
+      
+      // Sort by timestamp (most recent first)
+      activitiesWithTimestamps.sort((a, b) => 
+        new Date(b.timestamp) - new Date(a.timestamp)
+      );
+      
+      setRecentActivities(activitiesWithTimestamps.slice(0, 5));
+      
+      // Generate sales data from orders
+      if (ordersData.length > 0) {
+        generateSalesData(ordersData);
+      } else {
+        // Use mock data if no orders available
+        generateMockSalesData();
+      }
+      
+      setIsLoading(false);
+    };
+    
+    // Generate sales data from orders
+    const generateSalesData = (ordersData) => {
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      const last6Months = [];
+      const last6MonthsData = [];
+      
+      // Initialize sales data with zeros
+      const monthlySales = {};
+      for (let i = 5; i >= 0; i--) {
+        const monthIndex = (currentMonth - i + 12) % 12;
+        const monthKey = `${monthIndex}-${monthIndex > currentMonth ? currentYear - 1 : currentYear}`;
+        monthlySales[monthKey] = 0;
+        last6Months.push(monthNames[monthIndex]);
+      }
+      
+      // Aggregate order amounts by month
+      ordersData.forEach(order => {
+        if (!order.createdAt) return;
+        
+        const orderDate = new Date(order.createdAt);
+        const orderMonth = orderDate.getMonth();
+        const orderYear = orderDate.getFullYear();
+        const monthKey = `${orderMonth}-${orderYear}`;
+        
+        // Only include orders from the last 6 months
+        if (monthlySales.hasOwnProperty(monthKey)) {
+          monthlySales[monthKey] += (order.totalAmount || 0);
+        }
+      });
+      
+      // Convert the aggregated data to array format
+      for (let i = 5; i >= 0; i--) {
+        const monthIndex = (currentMonth - i + 12) % 12;
+        const monthKey = `${monthIndex}-${monthIndex > currentMonth ? currentYear - 1 : currentYear}`;
+        last6MonthsData.push(monthlySales[monthKey]);
+      }
+      
+      setSalesData({
+        labels: last6Months,
+        data: last6MonthsData
+      });
+    };
+    
+    // Generate mock sales data when no orders are available
+    const generateMockSalesData = () => {
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const currentMonth = new Date().getMonth();
+      const last6Months = [];
+      
+      for (let i = 5; i >= 0; i--) {
+        const monthIndex = (currentMonth - i + 12) % 12;
+        last6Months.push(monthNames[monthIndex]);
+      }
+      
+      // Generate random sales data between 5000 and 15000
+      const mockData = Array(6).fill().map(() => Math.floor(Math.random() * 10000) + 5000);
+      
+      setSalesData({
+        labels: last6Months,
+        data: mockData
+      });
     };
     
     // Only fetch if user is authenticated
     if (userInfo.email) {
       fetchDashboardData();
     }
-  }, [userInfo.email]);
+  }, [userInfo.email, userInfo.roles]);
   
   // Initialize chart
   useEffect(() => {
@@ -203,19 +319,52 @@ function Dashboard() {
             label: 'Monthly Sales',
             data: salesData.data,
             borderColor: 'rgb(75, 192, 192)',
-            tension: 0.1
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            borderWidth: 2,
+            tension: 0.3,
+            fill: true,
+            pointBackgroundColor: 'rgb(75, 192, 192)',
+            pointBorderColor: '#fff',
+            pointHoverBackgroundColor: '#fff',
+            pointHoverBorderColor: 'rgb(75, 192, 192)',
+            pointRadius: 4,
+            pointHoverRadius: 6
           }]
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
           plugins: {
             legend: {
-              display: false
+              display: true,
+              position: 'top',
+              labels: {
+                font: {
+                  size: 12
+                }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return formatCurrency(context.parsed.y);
+                }
+              }
             }
           },
           scales: {
+            x: {
+              grid: {
+                display: false
+              }
+            },
             y: {
-              beginAtZero: true
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return '$' + value.toLocaleString();
+                }
+              }
             }
           }
         }
@@ -248,6 +397,21 @@ function Dashboard() {
       style: 'currency',
       currency: 'USD'
     }).format(amount);
+  };
+  
+  // Format date
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      return 'Date unavailable';
+    }
   };
   
   // Get role display
@@ -288,9 +452,14 @@ function Dashboard() {
           </div>
         </header>
 
-        {error && (
-          <div className="mb-6 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-            {error}
+        {Object.values(errors).some(error => error) && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <h3 className="font-medium text-yellow-800 mb-2">Some data could not be loaded:</h3>
+            <ul className="list-disc list-inside text-yellow-700 space-y-1">
+              {errors.drugs && <li>{errors.drugs}</li>}
+              {errors.orders && <li>{errors.orders}</li>}
+              {errors.suppliers && <li>{errors.suppliers}</li>}
+            </ul>
           </div>
         )}
 
@@ -304,7 +473,7 @@ function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Drug Inventory Card */}
               <div 
-                className="dashboard-card bg-white shadow-lg rounded-lg p-6 cursor-pointer hover:transform hover:translate-y-[-10px] hover:shadow-xl transition duration-300"
+                className="dashboard-card bg-white shadow-lg rounded-lg p-6 cursor-pointer hover:shadow-xl transition duration-300"
                 onClick={() => navigate('/drug-inventory')}
               >
                 <div className="flex justify-between items-center mb-4">
@@ -321,7 +490,7 @@ function Dashboard() {
 
               {/* Orders Card */}
               <div 
-                className="dashboard-card bg-white shadow-lg rounded-lg p-6 cursor-pointer hover:transform hover:translate-y-[-10px] hover:shadow-xl transition duration-300"
+                className="dashboard-card bg-white shadow-lg rounded-lg p-6 cursor-pointer hover:shadow-xl transition duration-300"
                 onClick={() => navigate('/orders')}
               >
                 <div className="flex justify-between items-center mb-4">
@@ -338,8 +507,8 @@ function Dashboard() {
 
               {/* Suppliers Card */}
               <div 
-                className="dashboard-card bg-white shadow-lg rounded-lg p-6 cursor-pointer hover:transform hover:translate-y-[-10px] hover:shadow-xl transition duration-300"
-                onClick={() => navigate('/suppliers')}
+                className={`dashboard-card bg-white shadow-lg rounded-lg p-6 cursor-pointer hover:shadow-xl transition duration-300 ${errors.suppliers ? 'opacity-75' : ''}`}
+                onClick={() => !errors.suppliers && navigate('/suppliers')}
               >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-semibold text-gray-800">Suppliers</h2>
@@ -351,6 +520,9 @@ function Dashboard() {
                   <p className="text-gray-600">Active Suppliers: <span className="font-bold text-purple-600">{dashboardData.activeSuppliers}</span></p>
                   <p className="text-gray-600">New Requests: <span className="font-bold text-yellow-600">{dashboardData.newRequests}</span></p>
                 </div>
+                {errors.suppliers && (
+                  <p className="text-sm text-red-500 mt-2">⚠️ {errors.suppliers}</p>
+                )}
               </div>
             </div>
 
@@ -358,25 +530,52 @@ function Dashboard() {
               {/* Sales Chart */}
               <div className="bg-white shadow-lg rounded-lg p-6">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Monthly Sales</h2>
-                <canvas ref={salesChartRef}></canvas>
+                <div className="h-64">
+                  <canvas ref={salesChartRef}></canvas>
+                </div>
+                {errors.orders && (
+                  <p className="text-sm text-gray-500 mt-3 text-center italic">
+                    Showing mock data due to error loading orders
+                  </p>
+                )}
               </div>
 
               {/* Recent Activity */}
               <div className="bg-white shadow-lg rounded-lg p-6">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Recent Activity</h2>
                 {recentActivities.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">No recent activities</p>
+                  <div className="text-center py-8">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-gray-500 mt-2">No recent activities to display</p>
+                  </div>
                 ) : (
                   <ul className="divide-y divide-gray-200">
                     {recentActivities.map((activity, index) => (
-                      <li key={index} className="py-4">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">{activity.text}</span>
-                          <span className={`text-${activity.statusColor}-600`}>{activity.status}</span>
+                      <li key={index} className="py-3">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="text-gray-700 font-medium">{activity.text}</p>
+                            <p className="text-gray-500 text-sm">{formatDate(activity.timestamp)}</p>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-sm font-medium bg-${activity.statusColor}-100 text-${activity.statusColor}-800`}>
+                            {activity.status}
+                          </span>
                         </div>
                       </li>
                     ))}
                   </ul>
+                )}
+                {recentActivities.length > 0 && (
+                  <div className="mt-4 text-center">
+                    <button 
+                      className="text-blue-500 hover:text-blue-700 font-medium"
+                      onClick={() => navigate('/activities')}
+                    >
+                      View all activities
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
